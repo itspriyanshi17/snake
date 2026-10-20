@@ -3,19 +3,22 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#9bbc0f">
-<title>Retro LCD Snake</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap">
+<meta name="theme-color" content="#000000">
+<title>Dot Snake</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap">
 <style>
-  /* Layout: the whole page is the LCD. Score bar on top, the board (always fully visible),
-     and a message panel under it. Swipe anywhere on the screen to play. */
+  /* Layout: black page, a dot-matrix board, and a rounded "composer" bar under it that
+     shows the game status and holds the play / pause button. Swipe anywhere to steer. */
   :root {
-    color-scheme: light;
-    --lcd: #9bbc0f;       /* screen green, page background */
-    --lcd-2: #8bac0f;     /* light shade                    */
-    --lcd-3: #306230;     /* mid shade, secondary text      */
-    --ink: #0f380f;       /* darkest shade, main ink        */
-    --font: "Press Start 2P", "Courier New", monospace;
+    color-scheme: dark;
+    --bg: #000000;
+    --surface: #1e1e1e;      /* bar + buttons        */
+    --surface-2: #2b2b2b;    /* hover / pressed      */
+    --line: #262626;         /* board outline        */
+    --fg: #ececec;           /* main text            */
+    --muted: #8e8e8e;        /* secondary text       */
+    --blue: #2f7cf6;         /* snake + food + CTA   */
+    --font: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
   }
 
   * { box-sizing: border-box; }
@@ -27,8 +30,8 @@
 
   body {
     margin: 0;
-    background: var(--lcd);
-    color: var(--ink);
+    background: var(--bg);
+    color: var(--fg);
     font-family: var(--font);
     overflow: hidden;
     touch-action: none;          /* every swipe goes to the game */
@@ -39,55 +42,56 @@
 
   .app {
     height: 100%;
-    max-width: 640px;
+    max-width: 620px;
     margin: 0 auto;
     display: flex;
     flex-direction: column;
-    padding-top: max(12px, env(safe-area-inset-top, 0px));
-    padding-bottom: max(12px, env(safe-area-inset-bottom, 0px));
+    gap: 12px;
+    padding-top: max(14px, env(safe-area-inset-top, 0px));
+    padding-bottom: max(14px, env(safe-area-inset-bottom, 0px));
     padding-inline: 16px;
   }
 
   /* ---------- Top bar ---------- */
-  .hud { display: flex; align-items: center; gap: 12px; }
-  .stats {
-    flex: 1;
-    display: grid;
-    grid-template-columns: 1fr auto 1fr;
-    align-items: end;
-    gap: 8px;
-  }
-  .stat { display: flex; flex-direction: column; gap: 6px; }
-  .stat:nth-child(2) { align-items: center; }
-  .stat:nth-child(3) { align-items: flex-end; }
-  .stat .k { font-size: 8px; color: var(--lcd-3); letter-spacing: 0.12em; }
-  .stat .v { font-size: clamp(14px, 4.4vw, 20px); font-variant-numeric: tabular-nums; display: inline-block; }
-  .stat .v.bump { animation: bump 0.25s steps(2) 1; }
-  @keyframes bump { 0% { transform: scale(1.35); } 100% { transform: none; } }
+  .top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .brand { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
+  .icons { display: flex; gap: 6px; }
 
-  .icons { display: flex; gap: 8px; }
-  button {
+  .icon {
     appearance: none;
     width: 40px;
     height: 40px;
-    padding: 0;
-    color: var(--ink);
-    background: var(--lcd);
-    border: 3px solid var(--ink);
-    border-radius: 0;
-    cursor: pointer;
-    touch-action: manipulation;
-    -webkit-tap-highlight-color: transparent;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--fg);
     display: flex;
     align-items: center;
     justify-content: center;
+    cursor: pointer;
+    touch-action: manipulation;
   }
-  button svg { width: 18px; height: 18px; fill: currentColor; }
-  button:active, button.pressed { background: var(--ink); color: var(--lcd); }
-  button:focus-visible { outline: 3px dashed var(--lcd-3); outline-offset: 2px; }
-  button[hidden] { display: none; }
+  .icon svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .icon:active, .icon.pressed { background: var(--surface-2); }
+  .icon[hidden] { display: none; }
+  button:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 
-  /* ---------- Board + message, centred together ---------- */
+  .stats { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    background: var(--surface);
+    font-size: 13px;
+  }
+  .chip .k { color: var(--muted); }
+  .chip .v { font-weight: 700; font-variant-numeric: tabular-nums; display: inline-block; }
+  .chip .v.bump { animation: bump 0.3s ease-out 1; }
+  @keyframes bump { 0% { transform: scale(1.4); color: var(--blue); } 100% { transform: none; } }
+
+  /* ---------- Board + bar, centred together ---------- */
   .main {
     flex: 1;
     min-height: 0;
@@ -98,92 +102,117 @@
     gap: 14px;
   }
 
-  .timer { width: 100%; height: 6px; border: 2px solid var(--ink); visibility: hidden; }
-  .timer.on { visibility: visible; }
-  .timer i { display: block; height: 100%; width: 0; background: var(--ink); }
-
   .board-col {
-    width: min(100%, calc(100svh - 270px));
-    min-width: 200px;
+    width: min(100%, calc(100svh - 330px));
+    min-width: 220px;
     display: flex;
     flex-direction: column;
     gap: 8px;
   }
 
+  .timer { height: 3px; border-radius: 2px; background: var(--surface); visibility: hidden; overflow: hidden; }
+  .timer.on { visibility: visible; }
+  .timer i { display: block; height: 100%; width: 0; background: var(--blue); }
+
   .board {
     position: relative;
     width: 100%;
     aspect-ratio: 1 / 1;
-    border: 4px solid var(--ink);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    overflow: hidden;
     cursor: pointer;
   }
-  .board.shake { animation: shake 0.35s steps(1) 1; }
+  .board.shake { animation: shake 0.35s ease-out 1; }
   @keyframes shake {
-    0%   { transform: translate(-6px, 2px); }
-    20%  { transform: translate(6px, -2px); }
-    40%  { transform: translate(-4px, -2px); }
-    60%  { transform: translate(4px, 2px); }
-    80%  { transform: translate(-2px, 0); }
-    100% { transform: none; }
+    0%, 100% { transform: none; }
+    20% { transform: translateX(-6px); }
+    40% { transform: translateX(5px); }
+    60% { transform: translateX(-3px); }
+    80% { transform: translateX(2px); }
   }
-  canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
+  canvas { display: block; width: 100%; height: 100%; }
 
   .toast {
     position: absolute;
     left: 50%;
-    top: 8px;
+    top: 12px;
     transform: translateX(-50%);
-    background: var(--ink);
-    color: var(--lcd);
-    font-size: clamp(10px, 3vw, 13px);
-    padding: 8px 10px;
+    background: var(--surface-2);
+    color: var(--fg);
+    font-size: 13px;
+    padding: 8px 14px;
+    border-radius: 999px;
     white-space: nowrap;
     pointer-events: none;
   }
-  .flash { position: absolute; inset: 0; background: var(--ink); pointer-events: none; }
 
-  /* Message panel under the board: never covers the snake */
-  .panel {
+  /* ---------- Status heading + composer bar ---------- */
+  .status {
     width: 100%;
-    min-height: 118px;
+    min-height: 52px;
     display: flex;
     flex-direction: column;
+    justify-content: flex-end;
+    gap: 6px;
+  }
+  .status h1 { margin: 0; font-size: clamp(18px, 5vw, 22px); font-weight: 500; text-wrap: balance; }
+  .status p  { margin: 0; font-size: 12px; color: var(--muted); }
+
+  .bar {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 8px 8px 20px;
+    border-radius: 999px;
+    background: var(--surface);
+  }
+  .bar-text { flex: 1; min-width: 0; font-size: 15px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bar-text b { color: var(--fg); font-weight: 500; }
+
+  .go {
+    appearance: none;
+    width: 48px;
+    height: 48px;
+    flex: none;
+    border: 0;
+    border-radius: 50%;
+    background: var(--blue);
+    color: #ffffff;
+    display: flex;
     align-items: center;
     justify-content: center;
-    gap: 12px;
-    text-align: center;
-    line-height: 1.6;
+    cursor: pointer;
+    touch-action: manipulation;
   }
-  .p-title { font-size: clamp(20px, 6.5vw, 30px); }
-  .p-row   { font-size: clamp(10px, 3vw, 13px); display: flex; gap: 18px; justify-content: center; flex-wrap: wrap; }
-  .p-cta   { font-size: clamp(10px, 3vw, 13px); }
-  .p-hint  { font-size: 9px; color: var(--lcd-3); }
-  .p-badge { font-size: 10px; background: var(--ink); color: var(--lcd); padding: 6px 8px; }
-  .swipe-icon { width: 44px; height: 44px; fill: none; stroke: var(--ink); stroke-width: 3; stroke-linecap: square; }
-  .blink { animation: blink 1s steps(1) infinite; }
-  @keyframes blink { 50% { visibility: hidden; } }
+  .go svg { width: 18px; height: 18px; fill: currentColor; }
+  .go:active, .go.pressed { transform: scale(0.94); }
+
+  .foot { font-size: 11px; color: var(--muted); text-align: center; margin: 0; }
 
   @media (prefers-reduced-motion: reduce) {
-    .board.shake, .stat .v.bump { animation: none; }
+    .board.shake, .chip .v.bump { animation: none; }
   }
 </style>
 </head>
 <body>
 <div class="app">
-  <header class="hud">
-    <div class="stats">
-      <div class="stat"><span class="k">SCORE</span><span class="v" id="score">0000</span></div>
-      <div class="stat"><span class="k">LEVEL</span><span class="v" id="level">1</span></div>
-      <div class="stat"><span class="k">BEST</span><span class="v" id="best">0000</span></div>
-    </div>
+  <header class="top">
+    <div class="brand">Snake</div>
     <div class="icons">
-      <button id="btnPause" type="button" aria-label="Pause"></button>
-      <button id="btnSound" type="button" aria-label="Sound on or off"></button>
-      <button id="btnFull" type="button" aria-label="Full screen" hidden>
-        <svg viewBox="0 0 20 20"><path d="M2 2h6v3H5v3H2zm10 0h6v6h-3V5h-3zM2 12h3v3h3v3H2zm13 0h3v6h-6v-3h3z"/></svg>
+      <button class="icon" id="btnSound" type="button" aria-label="Sound on or off"></button>
+      <button class="icon" id="btnFull" type="button" aria-label="Full screen" hidden>
+        <svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
       </button>
     </div>
   </header>
+
+  <div class="stats">
+    <div class="chip"><span class="k">Score</span><span class="v" id="score">0</span></div>
+    <div class="chip"><span class="k">Best</span><span class="v" id="best">0</span></div>
+    <div class="chip"><span class="k">Level</span><span class="v" id="level">1</span></div>
+  </div>
 
   <main class="main">
     <div class="board-col">
@@ -191,10 +220,17 @@
       <div class="board" id="board">
         <canvas id="canvas" aria-label="Snake board"></canvas>
         <div class="toast" id="toast" hidden></div>
-        <div class="flash" id="flash" hidden></div>
       </div>
     </div>
-    <div class="panel" id="panel" aria-live="polite"></div>
+
+    <div class="board-col">
+      <div class="status" id="status" aria-live="polite"></div>
+      <div class="bar">
+        <div class="bar-text" id="barText"></div>
+        <button class="go" id="btnGo" type="button" aria-label="Play"></button>
+      </div>
+      <p class="foot" id="foot"></p>
+    </div>
   </main>
 </div>
 
@@ -209,15 +245,16 @@
   const BASE_DELAY = 150;          // ms per step at level 1
   const SPEED_STEP = 12;           // ms faster per level
   const MIN_DELAY = 60;
-  const FOODS_PER_LEVEL = 5;       // level up (and bonus bug) every N foods
-  const BONUS_STEPS = 30;          // steps before the bonus bug runs away
+  const FOODS_PER_LEVEL = 5;       // level up (and bonus dot) every N foods
+  const BONUS_STEPS = 30;          // steps before the bonus dot disappears
   const DEATH_MS = 900;            // input is ignored this long after a crash
   const SWIPE_MIN = 20;            // px of finger travel that counts as a swipe
 
-  const C = { bg: "#9bbc0f", grid: "#94b50e", light: "#8bac0f", mid: "#306230", dark: "#0f380f" };
+  // Canvas colours (match the CSS tokens)
+  const C = { grid: "#2a2a2a", blue: "#2f7cf6", eye: "#0a1f44", dead: "#5a5a5a", white: "#ffffff" };
 
-  const HIGH_KEY = "retroSnake.highScore";
-  const MUTE_KEY = "retroSnake.muted";
+  const HIGH_KEY = "dotSnake.highScore";
+  const MUTE_KEY = "dotSnake.muted";
 
   const DIRS = {
     up: { x: 0, y: -1 }, down: { x: 0, y: 1 },
@@ -231,34 +268,12 @@
   const REDUCED_MOTION = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const TOUCH = matchMedia("(pointer: coarse)").matches;
 
-  // 8x8 pixel sprites. d = dark, m = mid, l = light, . = transparent
-  const APPLE = [
-    "....d...",
-    "...d.mm.",
-    ".dddddd.",
-    "dmmmmlmd",
-    "dmmmmmmd",
-    "dmmmmmmd",
-    ".dmmmmd.",
-    "..dd.dd.",
-  ];
-  const BUG = [
-    "d......d",
-    ".d.dd.d.",
-    "..dmmd..",
-    "ddmllmdd",
-    "..dmmd..",
-    "ddmmmmdd",
-    "..dmmd..",
-    ".d.dd.d.",
-  ];
-
   const ICONS = {
-    soundOn:  '<svg viewBox="0 0 20 20"><path d="M2 7h4l5-4v14l-5-4H2zm11 0h2v6h-2zm3-3h2v12h-2z"/></svg>',
-    soundOff: '<svg viewBox="0 0 20 20"><path d="M2 7h4l5-4v14l-5-4H2zm11 0 2 2 2-2 1 1-2 2 2 2-1 1-2-2-2 2-1-1 2-2-2-2z"/></svg>',
-    pause:    '<svg viewBox="0 0 20 20"><path d="M4 3h4v14H4zm8 0h4v14h-4z"/></svg>',
-    play:     '<svg viewBox="0 0 20 20"><path d="M5 2l12 8-12 8z"/></svg>',
-    swipe:    '<svg class="swipe-icon" viewBox="0 0 44 44" aria-hidden="true"><path d="M22 4v36M4 22h36M22 4l-6 6M22 4l6 6M22 40l-6-6M22 40l6-6M4 22l6-6M4 22l6 6M40 22l-6-6M40 22l-6 6"/></svg>',
+    soundOn:  '<svg viewBox="0 0 24 24"><path d="M4 10v4h4l5 4V6L8 10z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/></svg>',
+    soundOff: '<svg viewBox="0 0 24 24"><path d="M4 10v4h4l5 4V6L8 10z"/><path d="M17 10l4 4M21 10l-4 4"/></svg>',
+    play:     '<svg viewBox="0 0 20 20"><path d="M6 3.5v13l11-6.5z"/></svg>',
+    pause:    '<svg viewBox="0 0 20 20"><rect x="5" y="5" width="10" height="10" rx="1.5"/></svg>',
+    retry:    '<svg viewBox="0 0 20 20"><path d="M10 3a7 7 0 1 0 7 7h-2.4A4.6 4.6 0 1 1 10 5.4V8l4-3.5L10 1z"/></svg>',
   };
 
   /* =========================================================
@@ -268,7 +283,7 @@
   const save = (k, v) => { try { localStorage.setItem(k, String(v)); } catch { /* ignore */ } };
 
   /* =========================================================
-     SOUND
+     SOUND (soft sine blips)
      ========================================================= */
   let audioCtx = null;
   let muted = load(MUTE_KEY) === "1";
@@ -281,28 +296,29 @@
     } catch { audioCtx = null; }
   }
 
-  function beep(freq, dur, offset = 0, vol = 0.06) {
+  function beep(freq, dur, offset = 0, vol = 0.08, type = "sine") {
     if (muted || !audioCtx) return;
     const t = audioCtx.currentTime + offset;
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
-    osc.type = "square";
+    osc.type = type;
     osc.frequency.setValueAtTime(freq, t);
-    gain.gain.setValueAtTime(vol, t);
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(vol, t + 0.01);
     gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     osc.connect(gain).connect(audioCtx.destination);
     osc.start(t);
-    osc.stop(t + dur + 0.01);
+    osc.stop(t + dur + 0.02);
   }
 
   const sfx = {
-    eat()   { beep(880, 0.05); beep(1320, 0.05, 0.05); },
-    bonus() { [660, 880, 1100, 1320].forEach((f, i) => beep(f, 0.05, i * 0.05)); },
-    level() { [523, 659, 784, 1047].forEach((f, i) => beep(f, 0.08, i * 0.09)); },
-    start() { beep(784, 0.06); beep(1047, 0.1, 0.07); },
-    pause() { beep(600, 0.06); },
-    over()  { beep(392, 0.15); beep(311, 0.15, 0.16); beep(247, 0.15, 0.32); beep(165, 0.4, 0.48); },
-    win()   { [523, 659, 784, 1047, 1319].forEach((f, i) => beep(f, 0.12, i * 0.12)); },
+    eat()   { beep(740, 0.08); beep(1110, 0.1, 0.05); },
+    bonus() { [660, 880, 1100, 1320].forEach((f, i) => beep(f, 0.08, i * 0.05)); },
+    level() { [523, 659, 784, 1047].forEach((f, i) => beep(f, 0.12, i * 0.09)); },
+    start() { beep(660, 0.08); beep(990, 0.12, 0.07); },
+    pause() { beep(520, 0.08); },
+    over()  { beep(330, 0.2, 0, 0.1, "triangle"); beep(220, 0.35, 0.18, 0.1, "triangle"); },
+    win()   { [523, 659, 784, 1047, 1319].forEach((f, i) => beep(f, 0.15, i * 0.12)); },
   };
 
   const buzz = ms => { try { navigator.vibrate && navigator.vibrate(ms); } catch { /* ignore */ } };
@@ -358,9 +374,11 @@
     step() {
       if (this.queue.length) this.dir = this.queue.shift();
       const head = this.snake[0];
-      const next = { x: head.x + this.dir.x, y: head.y + this.dir.y };
-
-      if (next.x < 0 || next.x >= COLS || next.y < 0 || next.y >= ROWS) return { dead: true };
+      // Walls wrap around: leaving one side brings the snake in on the opposite side.
+      const next = {
+        x: (head.x + this.dir.x + COLS) % COLS,
+        y: (head.y + this.dir.y + ROWS) % ROWS,
+      };
 
       const eating = this.food && same(next, this.food);
       // The tail leaves its cell this step unless we grow, so that cell is safe.
@@ -407,15 +425,16 @@
   const canvas = $("canvas");
   const ctx = canvas.getContext("2d");
   const board = $("board");
-  const panel = $("panel");
   const toast = $("toast");
-  const flash = $("flash");
+  const statusEl = $("status");
+  const barText = $("barText");
+  const foot = $("foot");
   const scoreEl = $("score"), levelEl = $("level"), bestEl = $("best");
   const timer = $("timer"), timerBar = $("timerBar");
-  const btnPause = $("btnPause"), btnSound = $("btnSound"), btnFull = $("btnFull");
+  const btnGo = $("btnGo"), btnSound = $("btnSound"), btnFull = $("btnFull");
 
   /* =========================================================
-     RENDERING (whole device pixels per cell, so edges stay sharp)
+     RENDERING: dot grid, snake and food are round dots centred on cells
      ========================================================= */
   let cell = 16;
 
@@ -427,129 +446,107 @@
   new ResizeObserver(resize).observe(canvas);
   resize();
 
-  // Edge of sub-pixel unit i (of 8) inside a cell, rounded so units tile without gaps
-  const u = i => Math.round((i * cell) / 8);
+  const centre = p => [(p.x + 0.5) * cell, (p.y + 0.5) * cell];
 
-  function drawSprite(rows, cx, cy) {
-    const ox = cx * cell, oy = cy * cell;
-    const col = { d: C.dark, m: C.mid, l: C.light };
-    rows.forEach((row, j) => {
-      for (let i = 0; i < 8; i++) {
-        const c = row[i];
-        if (c === ".") continue;
-        ctx.fillStyle = col[c];
-        ctx.fillRect(ox + u(i), oy + u(j), u(i + 1) - u(i), u(j + 1) - u(j));
-      }
-    });
-  }
-
-  function circle(x, y, r, color) {
+  function dot(x, y, r, color, alpha = 1) {
+    ctx.globalAlpha = alpha;
     ctx.fillStyle = color;
     ctx.beginPath();
     ctx.arc(x, y, r, 0, Math.PI * 2);
     ctx.fill();
+    ctx.globalAlpha = 1;
   }
 
-  // Round snake: a smooth tube through the cell centres, thinning towards the tail,
-  // with a round head. Every segment still sits exactly on one grid cell.
-  function drawSnake(g, t, dead) {
-    const s = g.snake;
-    const cx = p => (p.x + 0.5) * cell;
-    const cy = p => (p.y + 0.5) * cell;
-    // Radius tapers from 0.42 cell at the neck to 0.28 at the tail tip
-    const radius = i => cell * (0.42 - 0.14 * (s.length > 1 ? i / (s.length - 1) : 0));
+  function drawSnake(t, dead) {
+    const s = game.snake;
+    const color = dead ? C.dead : C.blue;
 
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    const tube = (color, shrink) => {
-      ctx.strokeStyle = color;
-      for (let i = s.length - 1; i >= 1; i--) {
-        ctx.lineWidth = Math.max(2, radius(i) * 2 - shrink);
-        ctx.beginPath();
-        ctx.moveTo(cx(s[i]), cy(s[i]));
-        ctx.lineTo(cx(s[i - 1]), cy(s[i - 1]));
-        ctx.stroke();
-      }
-    };
-    tube(C.dark, 0);             // outline
-    tube(C.mid, cell * 0.22);    // inside
-    for (let i = 2; i < s.length; i += 2) circle(cx(s[i]), cy(s[i]), radius(i) * 0.32, C.light);
+    // Body: separate round dots, a little smaller and lighter towards the tail
+    for (let i = s.length - 1; i >= 1; i--) {
+      const k = s.length > 1 ? i / (s.length - 1) : 0;
+      const [x, y] = centre(s[i]);
+      dot(x, y, cell * (0.36 - 0.08 * k), color, 1 - 0.45 * k);
+    }
 
-    // Head
-    const h = s[0], d = g.dir;
-    const hx = cx(h), hy = cy(h);
-    circle(hx, hy, cell * 0.48, C.dark);
+    // Head: bigger dot with two little eyes facing the way it moves
+    const h = s[0], d = game.dir;
+    const [hx, hy] = centre(h);
+    dot(hx, hy, cell * 0.44, color);
 
-    const side = { x: -d.y, y: d.x };   // perpendicular to movement
+    const side = { x: -d.y, y: d.x };
     for (const k of [-1, 1]) {
-      const ex = hx + d.x * cell * 0.04 + side.x * k * cell * 0.24;
-      const ey = hy + d.y * cell * 0.04 + side.y * k * cell * 0.24;
+      const ex = hx + d.x * cell * 0.1 + side.x * k * cell * 0.17;
+      const ey = hy + d.y * cell * 0.1 + side.y * k * cell * 0.17;
       if (dead) {
-        // X eyes after a crash
-        const r = cell * 0.1;
-        ctx.strokeStyle = C.bg;
-        ctx.lineWidth = Math.max(1.5, cell * 0.06);
+        const r = cell * 0.08;
+        ctx.strokeStyle = C.white;
+        ctx.lineWidth = Math.max(1.5, cell * 0.05);
+        ctx.lineCap = "round";
         ctx.beginPath();
         ctx.moveTo(ex - r, ey - r); ctx.lineTo(ex + r, ey + r);
         ctx.moveTo(ex + r, ey - r); ctx.lineTo(ex - r, ey + r);
         ctx.stroke();
       } else {
-        circle(ex, ey, cell * 0.12, C.bg);
-        circle(ex + d.x * cell * 0.04, ey + d.y * cell * 0.04, cell * 0.055, C.dark);
+        dot(ex, ey, cell * 0.075, C.white);
       }
-    }
-
-    // Open mouth when food is right ahead
-    const ahead = { x: h.x + d.x, y: h.y + d.y };
-    if (!dead && ((g.food && same(ahead, g.food)) || (g.bonus && same(ahead, g.bonus))) && Math.floor(t / 110) % 2) {
-      const ang = Math.atan2(d.y, d.x);
-      ctx.fillStyle = C.bg;
-      ctx.beginPath();
-      ctx.moveTo(hx + d.x * cell * 0.15, hy + d.y * cell * 0.15);
-      ctx.arc(hx, hy, cell * 0.5, ang - 0.5, ang + 0.5);
-      ctx.closePath();
-      ctx.fill();
     }
   }
 
-  // Little squares that burst from eaten food
+  // Small dots that burst out when food is eaten
   let particles = [];
-  function burst(at, n = 8) {
+  function burst(at, n = 10) {
     if (REDUCED_MOTION) return;
     for (let i = 0; i < n; i++) {
       const a = (i / n) * Math.PI * 2 + Math.random() * 0.4;
-      const sp = 3 + Math.random() * 3;
+      const sp = 2.5 + Math.random() * 2.5;
       particles.push({ x: at.x + 0.5, y: at.y + 0.5, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, born: performance.now() });
     }
   }
 
   function drawParticles(t) {
-    particles = particles.filter(p => t - p.born < 380);
-    ctx.fillStyle = C.dark;
-    const size = Math.max(2, u(2));
+    particles = particles.filter(p => t - p.born < 450);
     for (const p of particles) {
       const k = (t - p.born) / 1000;
-      ctx.fillRect(Math.round((p.x + p.vx * k) * cell - size / 2), Math.round((p.y + p.vy * k) * cell - size / 2), size, size);
+      const life = 1 - (t - p.born) / 450;
+      dot((p.x + p.vx * k) * cell, (p.y + p.vy * k) * cell, cell * 0.09, C.blue, life);
     }
   }
 
   function draw(t) {
-    ctx.fillStyle = C.bg;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Faint cell grid for that LCD texture
+    // Dot-matrix grid: one faint dot per cell
     ctx.fillStyle = C.grid;
-    for (let i = 1; i < COLS; i++) {
-      ctx.fillRect(i * cell, 0, 1, canvas.height);
-      ctx.fillRect(0, i * cell, canvas.width, 1);
+    const r = Math.max(1, cell * 0.06);
+    for (let y = 0; y < ROWS; y++) {
+      for (let x = 0; x < COLS; x++) {
+        ctx.beginPath();
+        ctx.arc((x + 0.5) * cell, (y + 0.5) * cell, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
 
-    if (game.food) drawSprite(APPLE, game.food.x, game.food.y);
-    if (game.bonus && !(game.bonus.left <= 8 && Math.floor(t / 120) % 2)) drawSprite(BUG, game.bonus.x, game.bonus.y);
+    // Food: a blue dot that gently pulses
+    if (game.food) {
+      const [x, y] = centre(game.food);
+      const pulse = REDUCED_MOTION ? 0 : Math.sin(t / 220) * 0.03;
+      dot(x, y, cell * (0.3 + pulse), C.blue);
+    }
+
+    // Bonus: a blue ring, blinking when about to vanish
+    if (game.bonus && !(game.bonus.left <= 8 && Math.floor(t / 120) % 2)) {
+      const [x, y] = centre(game.bonus);
+      ctx.strokeStyle = C.blue;
+      ctx.lineWidth = cell * 0.1;
+      ctx.beginPath();
+      ctx.arc(x, y, cell * 0.34, 0, Math.PI * 2);
+      ctx.stroke();
+      dot(x, y, cell * 0.12, C.blue);
+    }
 
     const dead = state === "dying" || state === "over";
     const blinkOff = state === "dying" && Math.floor((t - stateAt) / 120) % 2 === 1;
-    if (!blinkOff) drawSnake(game, t, dead);
+    if (!blinkOff) drawSnake(t, dead);
     drawParticles(t);
   }
 
@@ -566,8 +563,6 @@
   let acc = 0, lastTime = 0;
   let toastTimer = 0;
 
-  const pad4 = n => String(Math.min(n, 9999)).padStart(4, "0");
-
   function bump(el) {
     el.classList.remove("bump");
     void el.offsetWidth;
@@ -575,18 +570,9 @@
   }
 
   function updateHud() {
-    scoreEl.textContent = pad4(game.score);
+    scoreEl.textContent = game.score;
     levelEl.textContent = game.level;
-    bestEl.textContent = pad4(highScore);
-  }
-
-  function updateButtons() {
-    btnSound.innerHTML = muted ? ICONS.soundOff : ICONS.soundOn;
-    btnSound.setAttribute("aria-label", muted ? "Turn sound on" : "Turn sound off");
-    const paused = state === "paused";
-    btnPause.innerHTML = paused ? ICONS.play : ICONS.pause;
-    btnPause.setAttribute("aria-label", paused ? "Resume" : "Pause");
-    btnPause.hidden = !(state === "running" || paused);
+    bestEl.textContent = highScore;
   }
 
   function showToast(text, ms = 1400) {
@@ -596,40 +582,44 @@
     toastTimer = setTimeout(() => { toast.hidden = true; }, ms);
   }
 
-  // The message panel sits under the board, so the snake is always visible.
-  function renderPanel() {
-    const go = TOUCH ? "SWIPE TO PLAY" : "PRESS AN ARROW KEY";
+  // Heading, composer-bar text and the round button all follow the game state.
+  function renderUi() {
+    const steerHint = TOUCH ? "Swipe anywhere to turn" : "Arrow keys or WASD to turn, Space to pause";
+    let h1 = "", sub = "", bar = "", icon = ICONS.play, label = "Play";
+
     if (state === "ready") {
-      panel.innerHTML = `
-        <div class="p-title">SNAKE</div>
-        ${TOUCH ? ICONS.swipe : ""}
-        <div class="p-cta blink">${go}</div>
-        <div class="p-hint">${TOUCH ? "SWIPE UP, DOWN, LEFT OR RIGHT TO TURN" : "ARROWS / WASD TURN &middot; SPACE PAUSE"}</div>`;
+      h1 = "Snake";
+      sub = "Eat the blue dots. Edges wrap around.";
+      bar = TOUCH ? "<b>Swipe</b> to play" : "<b>Press an arrow key</b> to play";
     } else if (state === "running" || state === "dying") {
-      const n = game.toNextLevel;
-      panel.innerHTML = `
-        <div class="p-row"><span>${n} MORE TO LEVEL ${game.level + 1}</span></div>
-        <div class="p-hint">${TOUCH ? "SWIPE ANYWHERE TO TURN" : "ARROWS / WASD TURN &middot; SPACE PAUSE"}</div>`;
+      bar = `<b>${game.toNextLevel}</b> more to level ${game.level + 1}`;
+      icon = ICONS.pause; label = "Pause";
     } else if (state === "paused") {
-      panel.innerHTML = `
-        <div class="p-title">PAUSED</div>
-        <div class="p-cta blink">${TOUCH ? "TAP TO RESUME" : "PRESS SPACE"}</div>`;
+      h1 = "Paused";
+      bar = TOUCH ? "<b>Tap</b> to resume" : "<b>Space</b> to resume";
     } else if (state === "over") {
       const record = game.score > highAtStart;
-      panel.innerHTML = `
-        <div class="p-title">${won ? "YOU WIN!" : "GAME OVER"}</div>
-        <div class="p-row"><span>SCORE ${game.score}</span><span>BEST ${highScore}</span></div>
-        ${record ? '<div class="p-badge">NEW BEST!</div>' : ""}
-        <div class="p-cta blink">${TOUCH ? "SWIPE OR TAP TO RETRY" : "PRESS SPACE TO RETRY"}</div>`;
+      h1 = won ? "You filled the board!" : record ? "New best score!" : "Game over";
+      sub = `Score ${game.score} · Best ${highScore}`;
+      bar = TOUCH ? "<b>Swipe</b> or tap to play again" : "<b>Space</b> to play again";
+      icon = ICONS.retry; label = "Play again";
     }
+
+    statusEl.innerHTML = h1 ? `<h1>${h1}</h1>${sub ? `<p>${sub}</p>` : ""}` : "";
+    barText.innerHTML = bar;
+    btnGo.innerHTML = icon;
+    btnGo.setAttribute("aria-label", label);
+    foot.textContent = steerHint;
+
+    btnSound.innerHTML = muted ? ICONS.soundOff : ICONS.soundOn;
+    btnSound.setAttribute("aria-label", muted ? "Turn sound on" : "Turn sound off");
   }
 
   function setState(next) {
     state = next;
     stateAt = performance.now();
-    renderPanel();
+    renderUi();
     updateHud();
-    updateButtons();
   }
 
   function startGame() {
@@ -664,20 +654,23 @@
       board.classList.remove("shake");
       void board.offsetWidth;
       board.classList.add("shake");
-      flash.hidden = false;
-      setTimeout(() => { flash.hidden = true; }, 80);
     }
     setState("dying");
   }
 
-  // Tap / Space: start, resume or retry. (Pausing mid-game is the pause button or Space.)
-  function primaryAction(fromTap) {
+  // Round button / Space: play, pause, resume or play again
+  function mainAction() {
     if (state === "ready" || state === "over") startGame();
+    else if (state === "running") pause();
     else if (state === "paused") resume();
-    else if (state === "running" && !fromTap) pause();
   }
 
-  // A swipe or arrow key: steers, and also starts a new game from the ready / game-over screen.
+  // Tap on the screen: like the button, but never pauses a running game by accident
+  function tapAction() {
+    if (state !== "running") mainAction();
+  }
+
+  // A swipe or arrow key: steers, and also starts a game from the ready / game-over screen
   function steer(name) {
     if (state === "ready" || state === "over") startGame();
     if (state === "running") game.turn(name);
@@ -686,17 +679,17 @@
   function toggleMute() {
     muted = !muted;
     save(MUTE_KEY, muted ? "1" : "0");
-    if (!muted) beep(880, 0.06);
-    updateButtons();
-    showToast(muted ? "SOUND OFF" : "SOUND ON", 900);
+    if (!muted) beep(880, 0.08);
+    renderUi();
+    showToast(muted ? "Sound off" : "Sound on", 900);
   }
 
   // Full screen is optional: some browsers don't allow it
   function toggleFullscreen() {
     try {
       const p = document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
-      if (p && p.catch) p.catch(() => showToast("FULL SCREEN BLOCKED", 1200));
-    } catch { showToast("FULL SCREEN BLOCKED", 1200); }
+      if (p && p.catch) p.catch(() => showToast("Full screen not available", 1200));
+    } catch { showToast("Full screen not available", 1200); }
   }
   if (document.fullscreenEnabled) btnFull.hidden = false;
 
@@ -705,14 +698,14 @@
     if (r.bonus) {
       sfx.bonus();
       buzz(25);
-      burst(r.at, 12);
-      showToast(`BONUS +${r.bonus}`, 900);
+      burst(r.at, 14);
+      showToast(`Bonus +${r.bonus}`, 900);
     }
     if (r.ate) {
       burst(r.at);
-      if (r.levelUp) { sfx.level(); showToast(`LEVEL ${game.level}`); bump(levelEl); }
+      if (r.levelUp) { sfx.level(); showToast(`Level ${game.level}`); bump(levelEl); }
       else if (!r.bonus) { sfx.eat(); buzz(10); }
-      renderPanel();
+      renderUi();
     }
     if (r.ate || r.bonus) {
       if (game.score > highScore) {
@@ -767,10 +760,10 @@
 
     if (KEY_DIRS[key]) {
       e.preventDefault();
-      steer(KEY_DIRS[key]);
+      if (state !== "dying") steer(KEY_DIRS[key]);
     } else if (key === " " || key === "enter") {
       e.preventDefault();
-      if (!e.repeat) primaryAction(false);
+      if (!e.repeat) { mainAction(); press(btnGo); }
     } else if (key === "p" || key === "escape") {
       if (!e.repeat) { state === "running" ? pause() : resume(); }
     } else if (key === "m") {
@@ -780,17 +773,16 @@
     }
   });
 
-  // Top-bar buttons react on pointerdown (instant on phones). click with detail 0 = keyboard Enter.
+  // Buttons react on pointerdown (instant on phones). click with detail 0 = keyboard Enter.
   function bindButton(el, action) {
     el.addEventListener("pointerdown", e => {
       e.preventDefault();
-      e.stopPropagation();
       unlockAudio();
       action();
     });
     el.addEventListener("click", e => { if (e.detail === 0) { unlockAudio(); action(); } });
   }
-  bindButton(btnPause, () => (state === "paused" ? resume() : pause()));
+  bindButton(btnGo, mainAction);
   bindButton(btnSound, toggleMute);
   bindButton(btnFull, toggleFullscreen);
 
@@ -823,12 +815,12 @@
   document.addEventListener("touchend", e => {
     if (!touch) return;
     e.preventDefault();
-    if (!touch.swiped) primaryAction(true);   // tap: start / resume / retry
+    if (!touch.swiped) tapAction();
     touch = null;
   }, { passive: false });
 
   // Mouse click on the board (desktop) works like a tap
-  board.addEventListener("click", () => { unlockAudio(); primaryAction(true); });
+  board.addEventListener("click", () => { unlockAudio(); tapAction(); });
 
   document.addEventListener("visibilitychange", () => { if (document.hidden) pause(); });
 

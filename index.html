@@ -248,7 +248,7 @@
   const FOODS_PER_LEVEL = 5;       // level up (and bonus dot) every N foods
   const BONUS_STEPS = 30;          // steps before the bonus dot disappears
   const DEATH_MS = 900;            // input is ignored this long after a crash
-  const SWIPE_MIN = 20;            // px of finger travel that counts as a swipe
+  const SWIPE_MIN = 16;            // px of finger travel that counts as a swipe
 
   // Canvas colours (match the CSS tokens)
   const C = { grid: "#2a2a2a", blue: "#2f7cf6", eye: "#0a1f44", dead: "#5a5a5a", white: "#ffffff" };
@@ -337,6 +337,7 @@
       this.snake = [{ x: cx, y: cy }, { x: cx - 1, y: cy }, { x: cx - 2, y: cy }];
       this.dir = DIRS.right;
       this.queue = [];     // buffered turns, applied one per step
+      this.prev = null;    // positions before the last step (for smooth drawing)
       this.score = 0;
       this.eaten = 0;
       this.bonus = null;   // {x, y, left}
@@ -373,6 +374,7 @@
 
     step() {
       if (this.queue.length) this.dir = this.queue.shift();
+      this.prev = this.snake.map(s => ({ ...s }));
       const head = this.snake[0];
       // Walls wrap around: leaving one side brings the snake in on the opposite side.
       const next = {
@@ -437,11 +439,25 @@
      RENDERING: dot grid, snake and food are round dots centred on cells
      ========================================================= */
   let cell = 16;
+  const gridLayer = document.createElement("canvas");   // static dot grid, drawn once per resize
 
   function resize() {
     const dpr = window.devicePixelRatio || 1;
-    cell = Math.max(8, Math.floor((canvas.clientWidth * dpr) / COLS));
-    canvas.width = canvas.height = cell * COLS;
+    const next = Math.max(8, Math.floor((canvas.clientWidth * dpr) / COLS));
+    if (next === cell && canvas.width === next * COLS) return;
+    cell = next;
+    canvas.width = canvas.height = gridLayer.width = gridLayer.height = cell * COLS;
+
+    const g = gridLayer.getContext("2d");
+    g.fillStyle = C.grid;
+    const r = Math.max(1, cell * 0.06);
+    for (let y = 0; y < ROWS; y++) {
+      for (let x = 0; x < COLS; x++) {
+        g.beginPath();
+        g.arc((x + 0.5) * cell, (y + 0.5) * cell, r, 0, Math.PI * 2);
+        g.fill();
+      }
+    }
   }
   new ResizeObserver(resize).observe(canvas);
   resize();
@@ -457,39 +473,66 @@
     ctx.globalAlpha = 1;
   }
 
+  // How far the snake is through the current step (0 = just moved, 1 = about to move).
+  // The game logic still moves one whole cell per step; this only makes the drawing glide.
+  function stepProgress() {
+    if (REDUCED_MOTION || !game.prev) return 1;
+    if (state === "running" || state === "paused") return Math.min(1, acc / game.delay);
+    return 1;
+  }
+
+  // Drawn position of segment i, in cell units, sliding from its previous cell to its current one
+  function segmentPos(i, p) {
+    const c = game.snake[i];
+    const f = (game.prev && game.prev[i]) || c;
+    let dx = c.x - f.x, dy = c.y - f.y;
+    // Wrapped through an edge: it really moved one cell outward, not across the board
+    if (dx > 1) dx = -1; else if (dx < -1) dx = 1;
+    if (dy > 1) dy = -1; else if (dy < -1) dy = 1;
+    return { x: c.x - dx * (1 - p), y: c.y - dy * (1 - p) };
+  }
+
+  // Run fn at a position, plus its copy on the opposite side while it slides through an edge
+  function atWrapped(pos, fn) {
+    const xs = [pos.x], ys = [pos.y];
+    if (pos.x < 0) xs.push(pos.x + COLS); else if (pos.x > COLS - 1) xs.push(pos.x - COLS);
+    if (pos.y < 0) ys.push(pos.y + ROWS); else if (pos.y > ROWS - 1) ys.push(pos.y - ROWS);
+    for (const x of xs) for (const y of ys) fn((x + 0.5) * cell, (y + 0.5) * cell);
+  }
+
   function drawSnake(t, dead) {
     const s = game.snake;
     const color = dead ? C.dead : C.blue;
+    const p = stepProgress();
 
     // Body: separate round dots, a little smaller and lighter towards the tail
     for (let i = s.length - 1; i >= 1; i--) {
       const k = s.length > 1 ? i / (s.length - 1) : 0;
-      const [x, y] = centre(s[i]);
-      dot(x, y, cell * (0.36 - 0.08 * k), color, 1 - 0.45 * k);
+      atWrapped(segmentPos(i, p), (x, y) => dot(x, y, cell * (0.36 - 0.08 * k), color, 1 - 0.45 * k));
     }
 
     // Head: bigger dot with two little eyes facing the way it moves
-    const h = s[0], d = game.dir;
-    const [hx, hy] = centre(h);
-    dot(hx, hy, cell * 0.44, color);
-
+    const d = game.dir;
     const side = { x: -d.y, y: d.x };
-    for (const k of [-1, 1]) {
-      const ex = hx + d.x * cell * 0.1 + side.x * k * cell * 0.17;
-      const ey = hy + d.y * cell * 0.1 + side.y * k * cell * 0.17;
-      if (dead) {
-        const r = cell * 0.08;
-        ctx.strokeStyle = C.white;
-        ctx.lineWidth = Math.max(1.5, cell * 0.05);
-        ctx.lineCap = "round";
-        ctx.beginPath();
-        ctx.moveTo(ex - r, ey - r); ctx.lineTo(ex + r, ey + r);
-        ctx.moveTo(ex + r, ey - r); ctx.lineTo(ex - r, ey + r);
-        ctx.stroke();
-      } else {
-        dot(ex, ey, cell * 0.075, C.white);
+    atWrapped(segmentPos(0, p), (hx, hy) => {
+      dot(hx, hy, cell * 0.44, color);
+      for (const k of [-1, 1]) {
+        const ex = hx + d.x * cell * 0.1 + side.x * k * cell * 0.17;
+        const ey = hy + d.y * cell * 0.1 + side.y * k * cell * 0.17;
+        if (dead) {
+          const r = cell * 0.08;
+          ctx.strokeStyle = C.white;
+          ctx.lineWidth = Math.max(1.5, cell * 0.05);
+          ctx.lineCap = "round";
+          ctx.beginPath();
+          ctx.moveTo(ex - r, ey - r); ctx.lineTo(ex + r, ey + r);
+          ctx.moveTo(ex + r, ey - r); ctx.lineTo(ex - r, ey + r);
+          ctx.stroke();
+        } else {
+          dot(ex, ey, cell * 0.075, C.white);
+        }
       }
-    }
+    });
   }
 
   // Small dots that burst out when food is eaten
@@ -514,17 +557,7 @@
 
   function draw(t) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // Dot-matrix grid: one faint dot per cell
-    ctx.fillStyle = C.grid;
-    const r = Math.max(1, cell * 0.06);
-    for (let y = 0; y < ROWS; y++) {
-      for (let x = 0; x < COLS; x++) {
-        ctx.beginPath();
-        ctx.arc((x + 0.5) * cell, (y + 0.5) * cell, r, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
+    ctx.drawImage(gridLayer, 0, 0);   // dot-matrix grid (pre-rendered)
 
     // Food: a blue dot that gently pulses
     if (game.food) {
@@ -641,7 +674,6 @@
 
   function resume() {
     if (state !== "paused") return;
-    acc = 0;
     sfx.pause();
     setState("running");
   }
@@ -807,7 +839,6 @@
     if (Math.max(Math.abs(dx), Math.abs(dy)) < SWIPE_MIN) return;
     if (state !== "dying") {
       steer(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "right" : "left") : (dy > 0 ? "down" : "up"));
-      buzz(6);
     }
     touch = { x: t.clientX, y: t.clientY, swiped: true };
   }, { passive: false });
